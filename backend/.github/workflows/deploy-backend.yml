@@ -1,4 +1,4 @@
-name: Deploy Ahvaanam Backend
+name: Build and Push Ahvaanam Backend
 
 on:
   push:
@@ -7,17 +7,19 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  deploy:
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials using OIDC
@@ -26,11 +28,11 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push backend image
+      - name: Build Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
@@ -41,5 +43,11 @@ jobs:
             -t "$REGISTRY/$REPOSITORY:latest" \
             ./backend
 
+      - name: Push Docker image to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
           docker push "$REGISTRY/$REPOSITORY:latest"
